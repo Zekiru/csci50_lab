@@ -1,0 +1,159 @@
+*******************************************************************************
+* LAB #4
+*
+* Team In-vert
+* - Sales, Miguel
+* - Villaluz, Chester
+* - Villasurda, Ezekiel
+*
+*******************************************************************************
+
+.include "8clocks.jsim"
+.include "nominal.jsim"
+.include "stdcell.jsim"
+
+
+*******************************************************************************
+* Full-Adder and 32-Bit Ripple-Carry Adder
+*******************************************************************************
+.subckt fa a b carry_in sum carry_out
+    Xsum1 a b i xor2
+    Xsum2 i carry_in sum xor2
+    Xc_out1 a b j nand2
+    Xc_out2 i carry_in k nand2
+    Xc_out3 j k carry_out nand2
+.ends
+
+.subckt add32 a[31:0] b[31:0] cin0 sum[31:0] cout[31:30]
+    Xadd a[31:0] b[31:0] cout[30:0] cin0 sum[31:0] cout[31:0] fa
+.ends
+
+
+*******************************************************************************
+* 32-Bit Counter
+*******************************************************************************
+.subckt counter32 reset a[31:0] f[31:0] clk
+    Xincr a[31:0] f[31:0] 0 sum[31:0] c31 c30 add32
+    Xmux reset#32 sum[31:0] 0#32 d[31:0] mux2
+    Xreg d[31:0] clk#32 f[31:0] dreg
+.ends
+
+
+*******************************************************************************
+* Pitfall: DON'T use numbers AND iterators in your node names at the same time,
+*          e.g., temp[31:0] and temp2[31:0] will result in conflicts!
+*
+* Also, you may need to use these statements when making your own counter32:
+*
+* .connect node othernode(s)...
+*  = connects the first node to all the subsequent nodes
+*    - For example, ".connect a b[31:0]" connects a to b31, b30, ..., b0.
+*    - You can also connect nodes directly to ground ("false") by saying
+*      ".connect 0 othernode(s)..."
+*    - You can also connect nodes directly to vdd ("true") by saying
+*      ".connect vdd othernode(s)..."
+*
+* Xid s d0 d1 z mux2
+*  = "mux2" defines a 2-way multiplexer circuit.
+*    - If s = 0, node z is set to the value of node d0.
+*    - If s = 1, node z is set to the value of node d1.
+*    - s, d0, d1 and z are SINGLE BITS. As usual, use iterators to create
+*      several multiplexers at once.
+*    - Note that the reset node of your counter32 is only a single bit
+*      (NOT 32 bits), so to use it with multiple multiplexers, use the form
+*      "node#n" to make n copies of the node, e.g., "reset#32".
+*
+* Xid d clk q dreg
+*  = "dreg" defines a flip-flop register q (a single bit of "memory") and sets
+*    it to the value of another node, d.
+*    - Unlike "connect"-ing nodes, the value only gets stored into q when clk
+*      is doing a rising transition (also known as a "positive edge trigger").
+*    - Hint: You will also need iteration for this since we need a 32-bit
+*      register, which means you will also need to make 32 copies of clk.
+*******************************************************************************
+
+*******************************************************************************
+* Finally, it's time to simulate.
+* This circuit block instantiates the counter32 circuit that you just wrote.
+* We pass it a single-bit reset signal, a 32-bit increment value, a 32-bit
+* register, and a clock signal (we just used the JSim-predefined clk1).
+*******************************************************************************
+Xcounter32 reset incr[31:0] reg[31:0] clk1 counter32
+
+*******************************************************************************
+* This "reset" waveform sets up a reset signal that has a delayed start
+* and then goes to the next value every 50ns.
+* The values "1 0 0 0 1 0" indicate that the reset signal only turns on twice.
+* (But at which times?)
+*******************************************************************************
+Wreset reset nrz(0, 5, 50ns, 14.8ns, 0.001ns, 0.001ns)
++ 1 0 0 0 1 0
+
+*******************************************************************************
+* This "incr" waveform sets up a increment value for your counter32 circuit.
+* Note that it does NOT have a delayed start. The values "0 1 3 -1" roughly
+* translate to the following "commands" in Java-like syntax:
+*   reg += 0;  //  0 means don't touch the value
+*   reg++;     //  1 means increment by 1
+*   reg += 3;  //  3 means increment by 3
+*   reg--;     // -1 means decrement by 1
+* But note that these "commands" will happen EVERY positive clock edge (and
+* only when your reset signal is off)!
+*******************************************************************************
+Wincr incr[31:0] nrz(0, 5, 50ns, 0ns, 0.001ns, 0.001ns)
++ 0 1 3 -1
+
+*******************************************************************************
+* Plot our reset waveform, our incr waveform, clk1, and your 32-bit register.
+* Note: sd() displays a range of nodes as a signed decimal (instead of hex)
+*******************************************************************************
+.tran 300ns
+.plot reset
+.plot sd(incr[31:0])
+.plot clk1
+.plot sd(reg[31:0])
+
+*********************************************************************************************************************************
+* ANSWERS TO GUIDE QUESTIONS
+*********************************************************************************************************************************
+*
+* A. 
+* reg[31:0] (the output) is incremented/decremented by the amount specified in incr[31:0] on every rising clock edge, while 
+* the reset signal is 0. Whenever reset becomes 1, the value of the output becomes 0 after one additional clock cycle. If the 
+* reset signal is then set to 0, incrementing/decrementing starts at 0. This also takes one additional clock cycle to reflect in
+* the output (the output will be -1). 
+*
+* The significant delays between changing the reset signal value and reg[31:0] showing the proper output are caused by the time at
+* which the reset signal is changed (all four instances). The timing of each of these four changes coincides extremely close to a
+* rising edge of the clock. This means that even though the reset signal change occurs before the clock rises, the values inputted
+* to the register will only become valid and updated once the clock is already rising. This is because of the natural delay of the
+* first two parts of the counter32 circuit (the adder and the mux (which is where the reset is used)). 
+*
+* For example, when the reset signal was turned on while reg[31:0]'s value was 12, the clock rose before the value of the mux 
+* output/register input d[31:0] finished changing from 11 to 0. This is why the output became 11 and not 0 even with the reset 
+* signal turned on; the register never saw the updated value of d[31:0] when it was time to update its data. This reset timing 
+* issue is also the reason why there is an enormous delay at the start of the simulation. The value of the output initially starts
+* as invalid and only becomes 0 after the reset is turned on for the first time, but the time that the mux output/register input
+* d[31:0] finishes changing to 0 is right when the clock has already started rising. The register sees the old invalid input, so
+* the output value remains invalid for another whole clock cycle. 
+*
+* The solution to the timing issue is simple: make the reset signal change slightly earlier for all four changes. We have
+* experimentally verified that by changing the TDELAY of the reset waveform from 14.8 to 14.5ns, the massive chunk of delay at
+* the start of the simulation is cut in half, and all the 3 cases of incorrect output remaining for one additional clock cycle 
+* are resolved.
+*
+*********************************************************************************************************************************
+*
+* B. 
+* Before each clock edge, the new value has to be fully calculated and stable at the register's input. 
+* That means the value coming out of the register, passing through all 32 full adders (the carry can ripple through every bit)
+* and through the mux, then arriving back at the register input. That trip takes a fixed amount of time (in our testing, this 
+* took around 100 picoseconds), set by how fast the gates are. If the clock period is shorter than that, the next edge arrives 
+* before the answer is ready, and the register captures a half-computed, wrong value. So the clock speed is limited by the slowest
+* path in the circuit (the critical path), which here is the carry rippling through the adder.
+*
+*********************************************************************************************************************************
+
+*******************************************************************************
+* END OF FILE
+*******************************************************************************
