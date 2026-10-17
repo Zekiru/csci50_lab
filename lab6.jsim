@@ -75,15 +75,22 @@
 * Bitwise Boolean
 *******************************************************************************
 .subckt bool32 a[31:0] b[31:0] op[3:0] fbool[31:0]
-
+    Xbool32 a[31:0] b[31:0] op0#32 op1#32 op2#32 op3#32 fbool[31:0] mux4
 .ends 
 
 
 *******************************************************************************
-* Bit Shifter
+* Bit Shifter A: Bi-Directional Shifter
+* total circuit size = 881 gates (18637.0 microns^2)
+* propagation delay = 2.55ns
 *******************************************************************************
-.subckt shift32 a[31:0] b[31:0] op[1:0] fshift[31:0]
-
+.subckt shift32a a[31:0] b[4:0] op[1:0] fshift[31:0]
+    Xashift op1 a31 s and2
+    Xshift16 op0#32 b4#32 a[31:0]#2 a[15:0] 0#16 s#16 a[31:16] s4_[31:0] mux4
+    Xshift8 op0#32 b3#32 s4_[31:0]#2 s4_[23:0] 0#8 s#8 s4_[31:8] s3_[31:0] mux4
+    Xshift4 op0#32 b2#32 s3_[31:0]#2 s3_[27:0] 0#4 s#4 s3_[31:4] s2_[31:0] mux4
+    Xshift2 op0#32 b1#32 s2_[31:0]#2 s2_[29:0] 0#2 s#2 s2_[31:2] s1_[31:0] mux4
+    Xshift1 op0#32 b0#32 s1_[31:0]#2 s1_[30:0] 0 s s1_[31:1] fshift[31:0] mux4
 .ends
 
 
@@ -91,39 +98,47 @@
 * ALU
 *******************************************************************************
 .subckt alu32 a[31:0] b[31:0] alufn[5:0] f[31:0]
-    Xas a[31:0] b[31:0] alufn0 f3_[31:0] n v z as32
-    Xbool a[31:0] b[31:0] alufn[3:0] f2_[31:0] bool32
-    Xshift a[31:0] b[31:0] alufn[1:0] f1_[31:0] shift32
-    Xcmp n v z alufn[2:1] f0_[31:0] cmp32
-    # Subject to testing:
-    Xmux alufn4 alufn5 f[3:0]_[31:0] f[31:0] mux4
+    Xas a[31:0] b[31:0] alufn0 fas[31:0] n v z as32
+    Xbool a[31:0] b[31:0] alufn[3:0] fbool[31:0] bool32
+    Xshift a[31:0] b[4:0] alufn[1:0] fshift[31:0] shift32a
+    Xcmp n v z alufn[2:1] fcmp[31:0] cmp32
+    Xalum alufn4#32 alufn5#32
+    + fas[31:0] fbool[31:0] fshift[31:0] fcmp[31:0]
+    + f[31:0] mux4
 .ends
 
-* Xalu32 a[31:0] b[31:0] alufn[5:0] f[31:0] alu32
+Xalu32 a[31:0] b[31:0] alufn[5:0] f[31:0] alu32
 
 
 *******************************************************************************
 * Test Cases
 *******************************************************************************
-Wa a[31:0] nrz(0, 5, 20ns, 0ns, 0.001ns, 0.001ns)
-+ 0x00000000
+Wa a[31:0] nrz(0v,5.0v,20ns,0ns,.1ns,.1ns)
++ -1 0x55555555 0xAAAAAAAA 1 -2 -1 -1 0x55555555 0 -1 0x55555555 0
++ -1 0x55555555 0 -1 0x55555555 0 -1 0x55555555 0 1 -1 -1 0x55555555 0xAAAAAAAA -1
++ 0x55555555 0xAAAAAAAA -1 -1 15 0 -1 15 0 -1 15 0
 
-Wb b[31:0] nrz(0, 5, 20ns, 0ns, 0.001ns, 0.001ns)
-+ 0x00000000
+Wb b[31:0] nrz(0v,5.0v,20ns,0ns,.1ns,.1ns)
++ 1 0x55555555 0xAAAAAAAA 1 0 -1 -1 0xAAAAAAAA 0 -1 0xAAAAAAAA 0
++ -1 0xAAAAAAAA 0 -1 0xAAAAAAAA 0 -1 0xAAAAAAAA 0 31 15 0 24 24 31
++ 24 24 31 1 15 -256 1 15 -256 1 15 -256
 
-Walufn alufn[5:0] nrz(0, 5, 20ns, 0ns, 0.001ns, 0.001ns)
-+ 0b00000
+Wf alufn[5:0] nrz(0v,5.0v,60ns,0ns,.1ns,.1ns)
++ 0 1 24 30 22 26 21 32 33 35 51 53 55
 
 
 *******************************************************************************
 * Transient and Plot Commands
 * Note: sd() displays a range of nodes as a signed decimal (instead of hex)
 *******************************************************************************
-.tran 600ns
-.plot a[31:0]
-.plot b[31:0]
+.tran 800ns
+.plot sd(a[31:0])
+.plot b(a[31:0])
+.plot sd(b[31:0])
+.plot b(b[31:0])
 .plot b(alufn[5:0])
-.plot f[31:0]
+.plot sd(f[31:0])
+.plot b(f[31:0])
 
 
 *******************************************************************************
