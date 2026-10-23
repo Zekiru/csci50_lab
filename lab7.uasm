@@ -23,8 +23,10 @@
                             |   zero; you can shorten this to LD(INPUT, r0)
 LOOP:   ADDC(r1, 4, r1)     | r1 = r1 + 4 (note: r1 is initially 0)
         LD(r1, INPUT, r2)   | r2 = memory[r1 + INPUT]
+        CMPLT(r31, r2, r4)
+        BEQ(r4, NOADD)
         ADD(r3, r2, r3)     | r3 = r3 + r2 (keep a running total in r3)
-        SUBC(r0, 1, r0)     | r0 = r0 - 1 (decrement the array counter)
+NOADD:  SUBC(r0, 1, r0)     | r0 = r0 - 1 (decrement the array counter)
         BNE(r0, LOOP)       | (B)ranch back to LOOP if r0 is (N)ot (E)qual to 0
 
         ST(r3, OUTPUT, r31) | otherwise, store r3 into memory[OUTPUT + r31]
