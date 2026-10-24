@@ -78,12 +78,28 @@
     Xbool32 a[31:0] b[31:0] op0#32 op1#32 op2#32 op3#32 fbool[31:0] mux4
 .ends 
 
+
 *******************************************************************************
-* Bit Shifter: One-Direction Shifter with Bit-Reversers
+* Bit Shifter A: Bi-Directional Shifter
+* total circuit size = 881 gates (18637.0 microns^2)
+* propagation delay = 2.55ns
+*******************************************************************************
+.subckt shift32a a[31:0] b[4:0] op[1:0] fshift[31:0]
+    Xashift op1 a31 s and2
+    Xshift16 op0#32 b4#32 a[31:0]#2 a[15:0] 0#16 s#16 a[31:16] i[31:0] mux4
+    Xshift8 op0#32 b3#32 i[31:0]#2 i[23:0] 0#8 s#8 i[31:8] j[31:0] mux4
+    Xshift4 op0#32 b2#32 j[31:0]#2 j[27:0] 0#4 s#4 j[31:4] k[31:0] mux4
+    Xshift2 op0#32 b1#32 k[31:0]#2 k[29:0] 0#2 s#2 k[31:2] l[31:0] mux4
+    Xshift1 op0#32 b0#32 l[31:0]#2 l[30:0] 0 s l[31:1] fshift[31:0] mux4
+.ends
+
+
+*******************************************************************************
+* Bit Shifter B: One-Direction Shifter with Bit-Reversers
 * total circuit size = 625 gates (14125.0 microns^2)
 * propagation delay = 1.98 ns
 *******************************************************************************
-.subckt shift32 a[31:0] b[4:0] op[1:0] fshift[31:0]
+.subckt shift32b a[31:0] b[4:0] op[1:0] fshift[31:0]
     Xashift op1 a31 s and2
     Xrevin op0#32 a[0:31] a[31:0] i[31:0] mux2
     Xshift16 b4#32 i[31:0] s#16 i[31:16] j[31:0] mux2
@@ -101,7 +117,7 @@
 .subckt alu32 a[31:0] b[31:0] alufn[5:0] f[31:0]
     Xas a[31:0] b[31:0] alufn0 fas[31:0] n v z as32
     Xbool a[31:0] b[31:0] alufn[3:0] fbool[31:0] bool32
-    Xshift a[31:0] b[4:0] alufn[1:0] fshift[31:0] shift32
+    Xshift a[31:0] b[4:0] alufn[1:0] fshift[31:0] shift32b
     Xcmp n v z alufn[2:1] fcmp[31:0] cmp32
     Xalum alufn4#32 alufn5#32
     + fas[31:0] fbool[31:0] fshift[31:0] fcmp[31:0]
