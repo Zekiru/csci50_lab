@@ -149,13 +149,10 @@ Wf alufn[5:0] nrz(0v,5.0v,60ns,0ns,.1ns,.1ns)
 * Note: sd() displays a range of nodes as a signed decimal (instead of hex)
 *******************************************************************************
 .tran 800ns
-.plot sd(a[31:0])
-.plot b(a[31:0])
-.plot sd(b[31:0])
-.plot b(b[31:0])
+.plot a[31:0]
+.plot b[31:0]
 .plot b(alufn[5:0])
-.plot sd(f[31:0])
-.plot b(f[31:0])
+.plot f[31:0]
 
 
 *******************************************************************************
