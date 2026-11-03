@@ -21,22 +21,19 @@
         LD(r31, INPUT, r0)  | r0 = memory[r31 + INPUT] (the array length)
                             |  note: r31 is a special register that is always
                             |   zero; you can shorten this to LD(INPUT, r0)
-LOOP:   CMPLEC(r0, 0, r7)
-        BNE(r7, DONE)
-        SUBC(r0, 1, r0)     | r0 = r0 - 1 (decrement the array counter)
-        ADDC(r1, 4, r1)     | r1 = r1 + 4 (note: r1 is initially 0)
-        ST(r3, INPUT, r1)
-        ADD(r2, r3, r3)
-        CMPLTC(r3, 1, r4)
-        BNE(r4, ELSE)
-        ADDC(r3, 1, r3)
-        BEQ(r31, NEXT)
-ELSE:   ADD(r6, r2, r6)
-NEXT:   BEQ(r31, LOOP)      | (B)ranch back to LOOP if r0 is (N)ot (E)qual to 0
+LOOP:   CMPLTC(r0, 1, r6)
+        BNE(r6, DONE)
+        SUBC(r0, 1, r0)     | decrement the array counter
+        ADDC(r1, 4, r1)     | byte-displacement counter
+        ADD(r2, r3, r4)
+        ST(r4, INPUT, r1)
+        OR(r3, r31, r2)
+        OR(r4, r31, r3)
+        BNE(r4, NEXT)
+        ORC(r31, 1, r2)
+NEXT:   BEQ(r31, LOOP)      | (B)ranch back to LOOP
 
-DONE:   ST(r5, ODDSUM, r31)  | otherwise, store r3 into memory[OUTPUT + r31]
-        ST(r6, EVENSUM, r31) |  note: you can shorten this to ST(r3, OUTPUT)
-
+DONE:   
         HALT()              | then, finish execution
 
 |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
@@ -63,7 +60,3 @@ INPUT:
 
 | OUTPUT marks the memory block where the output will appear.
 | Nothing follows the label because the output will be written by the program.
-ODDSUM:
-        LONG(0)
-EVENSUM:
-        LONG(0)
