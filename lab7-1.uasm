@@ -18,25 +18,25 @@
 
 .include beta.uasm          | include the standard predefined macros
 
-        LD(r31, INPUT, r0)  | r0 = memory[r31 + INPUT] (the array length)
-                            |  note: r31 is a special register that is always
-                            |   zero; you can shorten this to LD(INPUT, r0)
-LOOP:   CMPLTC(r0, 1, r6)
+        LD(INPUT, r0)   | r0 = memory[r31 + INPUT] (the array length)
+                        |  note: r31 is a special register that is always
+                        |   zero; you can shorten this to LD(INPUT, r0)
+LOOP:   CMPLE(r0, r31, r6)
         BNE(r6, DONE)
-        SUBC(r0, 1, r0)     | decrement the array counter
-        ADDC(r1, 4, r1)     | byte-displacement counter
+        SUBC(r0, 1, r0)         | decrement the array counter
+        ADDC(r1, 4, r1)         | byte-displacement counter
         LD(r1, INPUT, r2)
         ANDC(r2, 1, r3)
         BEQ(r3, ELSE)
         ADD(r4, r2, r4)
         BEQ(r31, NEXT)
 ELSE:   ADD(r5, r2, r5)
-NEXT:   BEQ(r31, LOOP)      | (B)ranch back to LOOP
+NEXT:   BEQ(r31, LOOP)          | (B)ranch back to LOOP
+DONE:
+        ST(r4, ODDSUM)  | otherwise, store r3 into memory[OUTPUT + r31]
+        ST(r5, EVENSUM) |  note: you can shorten this to ST(r3, OUTPUT)
 
-DONE:   ST(r4, ODDSUM, r31)  | otherwise, store r3 into memory[OUTPUT + r31]
-        ST(r5, EVENSUM, r31) |  note: you can shorten this to ST(r3, OUTPUT)
-
-        HALT()              | then, finish execution
+        HALT()          | then, finish execution
 
 |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 

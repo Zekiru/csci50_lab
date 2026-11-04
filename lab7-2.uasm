@@ -21,7 +21,7 @@
         LD(INPUT, r0)       | r0 = memory[r31 + INPUT] (the array length)
         CMOVE(1, r2)        |  note: r31 is a special register that is always
                             |   zero; you can shorten this to LD(INPUT, r0)
-LOOP:   CMPLTC(r0, 1, r6)
+LOOP:   CMPLE(r0, r31, r6)
         BNE(r6, DONE)
         SUBC(r0, 1, r0)     | decrement the array counter
         ADDC(r1, 4, r1)     | byte-displacement counter
@@ -30,7 +30,6 @@ LOOP:   CMPLTC(r0, 1, r6)
         MOVE(r3, r2)
         MOVE(r4, r3)
         BEQ(r31, LOOP)      | (B)ranch back to LOOP
-
 DONE:   
         HALT()              | then, finish execution
 
