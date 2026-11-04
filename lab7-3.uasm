@@ -1,0 +1,50 @@
+|*******************************************************************************
+|* LAB #7
+|*
+|* Team In-vert
+|* - Sales, Miguel
+|* - Villaluz, Chester
+|* - Villasurda, Ezekiel
+|*
+|*******************************************************************************
+
+.include beta.uasm
+
+| Bubble-sort ARRAY in ascending order.  The length word is never written.
+        LD(ARRAY, r7)             | r7 = N
+        CMPLTC(r7, 2, r8)         | arrays of length 0 or 1 are sorted
+        BNE(r8, DONE)
+        SUBC(r7, 1, r7)           | required consecutive in-order pairs
+        CMOVE(4, r4)              | byte offset of the first pair value
+        CMOVE(0, r0)              | consecutive in-order pair count
+
+LOOP:   LD(r4, ARRAY, r1)
+        ADDC(r4, 4, r4)
+        LD(r4, ARRAY, r2)
+        CMPLE(r1, r2, r3)
+        BEQ(r3, SWAP)
+
+        ADDC(r0, 1, r0)
+        CMPEQ(r0, r7, r9)
+        BEQ(r9, LOOP)
+        HALT()
+
+SWAP:   ST(r1, ARRAY, r4)
+        SUBC(r4, 4, r4)
+        ST(r2, ARRAY, r4)
+        CMOVE(4, r4)
+        CMOVE(0, r0)
+        BR(LOOP)
+
+DONE:   HALT()
+
+. = 0x100
+
+ARRAY:  LONG(7)
+        LONG(5)
+        LONG(7)
+        LONG(8)
+        LONG(6)
+        LONG(4)
+        LONG(9)
+        LONG(3)
