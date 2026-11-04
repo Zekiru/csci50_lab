@@ -1,55 +1,38 @@
-|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
-| This sample .uasm program processes an array of integers and computes
-| their total sum.
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+| LAB #7
 |
-| Important notes:
-| 1. As usual, replace this comment block with the specific lab number that
-|    you are submitting, along with your group name and member names in
-|    lastname-firstname alphabetical order.
-| 2. For Lab 7, you are expected to mark the data portions of your program
-|    using labels, as demonstrated below using the labels INPUT: and OUTPUT:.
-| 3. While this sample program should work fine with most user inputs, there
-|    is an edge case that will cause this program to fail catastrophically.
-|    (Can you figure it out?)
+| Team In-vert
+| - Sales, Miguel
+| - Villaluz, Chester
+| - Villasurda, Ezekiel
 |
-| Happy hacking! - eric
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 
-|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+.include beta.uasm
 
-.include beta.uasm          | include the standard predefined macros
+        LD(INPUT, r0)
 
-        LD(INPUT, r0)   | r0 = memory[r31 + INPUT] (the array length)
-                        |  note: r31 is a special register that is always
-                        |   zero; you can shorten this to LD(INPUT, r0)
 LOOP:   CMPLE(r0, r31, r6)
         BNE(r6, DONE)
         SUBC(r0, 1, r0)         | decrement the array counter
         ADDC(r1, 4, r1)         | byte-displacement counter
-        LD(r1, INPUT, r2)
-        ANDC(r2, 1, r3)
-        BEQ(r3, ELSE)
-        ADD(r4, r2, r4)
-        BEQ(r31, NEXT)
-ELSE:   ADD(r5, r2, r5)
+        LD(r1, INPUT, r2)       |
+        ANDC(r2, 1, r3)         | Check if least-significant bit is 1
+        BEQ(r3, ELSE)           | Branch to ELSE if even
+        ADD(r4, r2, r4)         | r4 = sum of odd numbers
+        BR(NEXT)                | Skip next instruction
+ELSE:   ADD(r5, r2, r5)         | r5 = sum of even numbers
 NEXT:   BEQ(r31, LOOP)          | (B)ranch back to LOOP
 DONE:
-        ST(r4, ODDSUM)  | otherwise, store r3 into memory[OUTPUT + r31]
-        ST(r5, EVENSUM) |  note: you can shorten this to ST(r3, OUTPUT)
+        ST(r4, ODDSUM)
+        ST(r5, EVENSUM)
 
-        HALT()          | then, finish execution
+        HALT()                  | then, finish execution
 
 |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 
-| The "." statement changes the current memory location of any succeeding
-| UASM macros, so that it is easy to locate in the BSim window.
-| - If you omit this statement, the INPUT memory block would begin directly
-|   after your program block.
-| - You may need to adjust this memory location to make more memory space for
-|   your data.
 . = 0x19C
 
-| INPUT marks the beginning of the memory block containing the hardcoded
-| user "input".
 INPUT:
         LONG(7)             | <-- length of the array
         LONG(4)             | <-- first element of the array
@@ -60,9 +43,5 @@ INPUT:
         LONG(5)
         LONG(-2)            | <-- last element of the array
 
-| OUTPUT marks the memory block where the output will appear.
-| Nothing follows the label because the output will be written by the program.
-ODDSUM:
-        LONG(0)
+ODDSUM: LONG(0)
 EVENSUM:
-        LONG(0)

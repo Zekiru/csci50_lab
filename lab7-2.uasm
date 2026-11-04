@@ -1,34 +1,27 @@
-|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
-| This sample .uasm program processes an array of integers and computes
-| their total sum.
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+| LAB #7
 |
-| Important notes:
-| 1. As usual, replace this comment block with the specific lab number that
-|    you are submitting, along with your group name and member names in
-|    lastname-firstname alphabetical order.
-| 2. For Lab 7, you are expected to mark the data portions of your program
-|    using labels, as demonstrated below using the labels INPUT: and OUTPUT:.
-| 3. While this sample program should work fine with most user inputs, there
-|    is an edge case that will cause this program to fail catastrophically.
-|    (Can you figure it out?)
+| Team In-vert
+| - Sales, Miguel
+| - Villaluz, Chester
+| - Villasurda, Ezekiel
 |
-| Happy hacking! - eric
+|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 
-|||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
+.include beta.uasm
 
-.include beta.uasm          | include the standard predefined macros
+        LD(INPUT, r0)       | r0 = array counter (size)
+        CMOVE(1, r2)        | Set r2 to 1 to allow the sequence to go
+                            |  from 0 to 1 
 
-        LD(INPUT, r0)       | r0 = memory[r31 + INPUT] (the array length)
-        CMOVE(1, r2)        |  note: r31 is a special register that is always
-                            |   zero; you can shorten this to LD(INPUT, r0)
-LOOP:   CMPLE(r0, r31, r6)
-        BNE(r6, DONE)
-        SUBC(r0, 1, r0)     | decrement the array counter
-        ADDC(r1, 4, r1)     | byte-displacement counter
-        ST(r4, FIBO, r1)
-        ADD(r2, r3, r4)
-        MOVE(r3, r2)
-        MOVE(r4, r3)
+LOOP:   CMPLE(r0, r31, r6)  | Break while-loop if:
+        BNE(r6, DONE)       |  array counter <= 0
+        SUBC(r0, 1, r0)     | Decrement the array counter
+        ADDC(r1, 4, r1)     | Byte-displacement counter (+4)
+        ST(r4, FIBO, r1)    | Store current fibonacci number
+        ADD(r2, r3, r4)     | r2 + r3 = next fibonacci number
+        MOVE(r3, r2)        | Shift addends forward in the sequence
+        MOVE(r4, r3)        | 
         BEQ(r31, LOOP)      | (B)ranch back to LOOP
 DONE:   
         HALT()              | then, finish execution
@@ -37,6 +30,5 @@ DONE:
 
 . = 0x19C
 
-INPUT:  LONG(7)             | <-- length of fibo sequence
-
+INPUT:  LONG(7)             | <-- length of fibonacci sequence
 FIBO:

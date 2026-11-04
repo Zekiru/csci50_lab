@@ -38,7 +38,7 @@ SWAP:   ST(r1, ARRAY, r4)
 
 DONE:   HALT()
 
-. = 0x100
+. = 0x19C
 
 ARRAY:  LONG(7)
         LONG(5)
