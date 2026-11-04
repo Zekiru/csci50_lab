@@ -18,45 +18,26 @@
 
 .include beta.uasm          | include the standard predefined macros
 
-        LD(r31, INPUT, r0)  | r0 = memory[r31 + INPUT] (the array length)
-                            |  note: r31 is a special register that is always
+        LD(INPUT, r0)       | r0 = memory[r31 + INPUT] (the array length)
+        CMOVE(1, r2)        |  note: r31 is a special register that is always
                             |   zero; you can shorten this to LD(INPUT, r0)
 LOOP:   CMPLTC(r0, 1, r6)
         BNE(r6, DONE)
         SUBC(r0, 1, r0)     | decrement the array counter
         ADDC(r1, 4, r1)     | byte-displacement counter
+        ST(r4, FIBO, r1)
         ADD(r2, r3, r4)
-        ST(r4, INPUT, r1)
-        OR(r3, r31, r2)
-        OR(r4, r31, r3)
-        BNE(r4, NEXT)
-        ORC(r31, 1, r2)
-NEXT:   BEQ(r31, LOOP)      | (B)ranch back to LOOP
+        MOVE(r3, r2)
+        MOVE(r4, r3)
+        BEQ(r31, LOOP)      | (B)ranch back to LOOP
 
 DONE:   
         HALT()              | then, finish execution
 
 |||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||||
 
-| The "." statement changes the current memory location of any succeeding
-| UASM macros, so that it is easy to locate in the BSim window.
-| - If you omit this statement, the INPUT memory block would begin directly
-|   after your program block.
-| - You may need to adjust this memory location to make more memory space for
-|   your data.
 . = 0x19C
 
-| INPUT marks the beginning of the memory block containing the hardcoded
-| user "input".
-INPUT:
-        LONG(7)             | <-- length of the array
-        LONG(4)             | <-- first element of the array
-        LONG(-1)
-        LONG(1)
-        LONG(0)
-        LONG(-1)
-        LONG(5)
-        LONG(-2)            | <-- last element of the array
+INPUT:  LONG(7)             | <-- length of fibo sequence
 
-| OUTPUT marks the memory block where the output will appear.
-| Nothing follows the label because the output will be written by the program.
+FIBO:
