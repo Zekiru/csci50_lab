@@ -7,7 +7,7 @@
 * - Villasurda, Ezekiel
 *
 *
-* Program used: lab7.bin was assembled from Lab 7 FIBONACCI program.
+* Program used: lab7.bin was assembled from Lab 7-1 Odd-Even Sums program.
 *
 *******************************************************************************
 
@@ -56,8 +56,9 @@
 *   2nd line = read port for LD instructions (memrd)
 *   3rd line = write port for ST instructions (memwd, controlled by wr signal)
 *   5th line = the memory statement itself
-* TODO: Copy your Beta program's BSim assembler output (.bin file) to your JSim
-*       folder and change the file= parameter accordingly!
+*
+* Lab 7 bin file: 7-1 (Odd-Even Sums)
+*
 *******************************************************************************
 Xmemory  vdd  0    0   pc[8:2]    inst[31:0]
 +        vdd  0    0   mema[8:2]  memrd[31:0]
@@ -83,7 +84,6 @@ Xregisters  vdd  0    0     ra1_[4:0]  rd1_[31:0]
 + )
 
 *******************************************************************************
-* Temporarily connect the control logic werf_ signal directly to werf.
 * If wa[4:0] = 0b11111 (31), werf is forced OFF so r31 always stays 0;
 * otherwise werf simply follows werf_.
 *   werf = werf_ AND NOT(wa == 31)
@@ -93,15 +93,10 @@ Xwa31b  wa31_lo wa[4]            wa_not31 nand2
 Xwerf   werf_ wa_not31           werf     and2
 
 *******************************************************************************
-* Xcontrol is a read-only memory (ROM) that defines what to feed into the
-* control signal lines of your final Beta circuit, depending on what opcode
-* was read from your instruction memory (along with an additional signal "z"
-* signifying the evaluation result of a BEQ or BNE instruction).
-*   1st line = read port w/ 7 address lines (z + 6-bit opcode) + 14 data lines
-*   2nd line = the memory statement itself
-*   succeeding lines = the control signals (14 bits each) for all 64 opcodes
-*                      times 2 (first half is for z = 0, second half for z = 1)
+* Control Layout: Read-only Memory (ROM)
 * Row layout: control = pcsel[1:0] ra2sel bsel wdsel[1:0] alufn[5:0] wr werf_
+* (first half is for z = 0, second half for z = 1)
+*
 * Supported opcodes: LD 0x18, ST 0x19, JMP 0x1B, BEQ 0x1D, BNE 0x1E,
 *   ADD 0x20, SUB 0x21, CMPEQ 0x24, CMPLT 0x25, CMPLE 0x26, AND 0x28, OR 0x29,
 *   XOR 0x2A, SHL 0x2C, SHR 0x2D, SRA 0x2E, and the constant
@@ -228,3 +223,41 @@ Xjdisplayb wr_werf[1:0]     wr werf_               join
 .plot d(mema[8:0])
 .plot sd(memrd[31:0])
 .plot sd(memwd[31:0])
+
+
+*******************************************************************************
+* GUIDE QUESTIONS
+*
+* a. Why is there an additional Z input (on top of the instruction opcode
+*    inputs) in the Xcontrol block?
+*
+*    The z input acts as the zero-detection flag (Reg[Ra] == 0) so the
+*    Xcontrol ROM can decide whether to take a branch during BEQ (0x1D) and
+*    BNE (0x1E) instructions. Specifically, z toggles the least significant
+*    bit of pcsel[1:0] between 0b00 (PC + 4) and 0b01 (branch target) without
+*    needing extra logic gates outside the ROM. For BEQ, pcsel becomes 01 when
+*    z = 1; for BNE, pcsel becomes 01 when z = 0.
+*
+* b. Why should invalid instructions' control logic output be set to the
+*    constant 0b11000000000000?
+*
+*    Following the 14-bit layout (pcsel[1:0] ra2sel bsel wdsel[1:0] alufn[5:0]
+*    wr werf_), 0b11000000000000 sets pcsel = 11 while keeping every other
+*    control signal, including wr (memory write) and werf_ (register write)
+*    at 0. This prevents executing garbage, while wr = 0 and werf_ = 0 protect 
+*    registers and main memory from accidental writes.
+*
+* c. Does your Lab 7 program represent a good number of opcodes that your
+*    control logic supports? What's the functional coverage?
+*
+*    No, the functional coverage is still low at 9 out of 27 supported opcodes
+*    (~33.3%). While Xcontrol supports 27 opcodes (memory, branching, jumps,
+*    and all register/constant ALU operations), our Odd/Even Sum program only
+*    uses 9 of them (LD, ST, BEQ, BNE, ADD, ADDC, SUBC, CMPLE, and ANDC)
+*    because it only needs basic arithmetic, memory access, branch checks, and
+*    a single bitwise mask to separate odd and even values. As a result,
+*    entire instruction categories like jumps (JMP), other bitwise ops (OR,
+*    XOR), equality/less-than comparisons (CMPEQ, CMPLT), and all bit shifts
+*    (SHL, SHR, SRA) remain untested, meaning a broader test program is still
+*    needed to verify the rest of the ROM.
+*******************************************************************************
