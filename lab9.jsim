@@ -1,5 +1,5 @@
 *******************************************************************************
-* LAB #9
+* LAB #9 (Fast)
 *
 * Team In-vert
 * - Sales, Miguel
@@ -13,22 +13,141 @@
 .include "stdcell.jsim"
 
 *******************************************************************************
-* Full-Adder & (32 & 7)-Bit Ripple-Carry Adder
+* Fast 4-Bit Carry-Lookahead Adder Block
 *******************************************************************************
-.subckt fa a b carry_in sum carry_out
-    Xsum1 a b i xor2
-    Xsum2 i carry_in sum xor2
-    Xc_out1 a b j nand2
-    Xc_out2 i carry_in k nand2
-    Xc_out3 j k carry_out nand2
+.subckt cla4 a[3:0] b[3:0] cin sum[3:0] cout[3:0] G P
+* Bitwise Propagate (P_i = A_i ^ B_i) and inverted Generate (~G_i = ~(A_i * B_i))
+    Xp   a[3:0] b[3:0] p[3:0]  xor2
+    Xg_n a[3:0] b[3:0] gn[3:0] nand2
+
+* carry1 = g0 + p0*cin = ~(~g0 * ~(p0*cin))
+    Xc1a p0 cin t10 nand2
+    Xc1  gn0 t10 carry1 nand2
+
+* carry2 = g1 + p1*g0 + p1*p0*cin
+    Xg0  gn0 g0 inverter
+    Xc2a p1 g0 t21 nand2
+    Xc2b p1 p0 cin t20 nand3
+    Xc2  gn1 t21 t20 carry2 nand3
+
+* carry3 = g2 + p2*g1 + p2*p1*g0 + p2*p1*p0*cin
+    Xg1  gn1 g1 inverter
+    Xc3a p2 g1 t32 nand2
+    Xc3b p2 p1 g0 t31 nand3
+    Xc3c p2 p1 p0 cin t30 nand4
+    Xc3  gn2 t32 t31 t30 carry3 nand4
+
+* Block Propagate: P = p3 * p2 * p1 * p0
+    Xbp_n p[3:0] pgn nand4
+    Xbp   pgn P inverter
+
+* Block Generate: G = g3 + p3*g2 + p3*p2*g1 + p3*p2*p1*g0
+    Xg2  gn2 g2 inverter
+    Xbga p3 g2 tg2 nand2
+    Xbgb p3 p2 g1 tg1 nand3
+    Xbgc p3 p2 p1 g0 tg0 nand4
+    Xbg  gn3 tg2 tg1 tg0 G nand4
+
+* Block Carry-Out: cout3 = G + P*cin
+    Xgn    G gn inverter
+    Xco    P cin tco nand2
+    Xcout3 gn tco cout3 nand2
+
+* Map internal carries to cout[2:0] (cout3 is driven exclusively by Xcout3)
+    .connect carry1 cout0
+    .connect carry2 cout1
+    .connect carry3 cout2
+
+* Sum bits: sum[3:0] = p[3:0] ^ {carry3, carry2, carry1, cin}
+    Xsum p[3:0] carry3 carry2 carry1 cin sum[3:0] xor2
 .ends
 
+*******************************************************************************
+* Fast 4-Way Carry-Lookahead Generator
+*******************************************************************************
+.subckt clg4 G[3:0] P[3:0] cin C[3:1] GG PG
+    Xgn G[3:0] gn[3:0] inverter
+
+* C1 = G0 + P0*cin
+    Xc1a P0 cin t10 nand2
+    Xc1  gn0 t10 C1 nand2
+
+* C2 = G1 + P1*G0 + P1*P0*cin
+    Xc2a P1 G0 t21 nand2
+    Xc2b P1 P0 cin t20 nand3
+    Xc2  gn1 t21 t20 C2 nand3
+
+* C3 = G2 + P2*G1 + P2*P1*G0 + P2*P1*P0*cin
+    Xc3a P2 G1 t32 nand2
+    Xc3b P2 P1 G0 t31 nand3
+    Xc3c P2 P1 P0 cin t30 nand4
+    Xc3  gn2 t32 t31 t30 C3 nand4
+
+* Super-Block Propagate & Generate
+    Xpg_n P[3:0] pgn nand4
+    Xpg   pgn PG inverter
+
+    Xgga P3 G2 tg2 nand2
+    Xggb P3 P2 G1 tg1 nand3
+    Xggc P3 P2 P1 G0 tg0 nand4
+    Xgg  gn3 tg2 tg1 tg0 GG nand4
+.ends
+
+*******************************************************************************
+* 32-Bit Hierarchical Carry-Lookahead Adder
+*******************************************************************************
 .subckt add32 a[31:0] b[31:0] cin0 sum[31:0] cout[31:30]
-    Xadd a[31:0] b[31:0] cout[30:0] cin0 sum[31:0] cout[31:0] fa
+* Lower 16 bits (four 4-bit CLA blocks + 1st-level CLG)
+    Xcla0   a[3:0]   b[3:0]   cin0   sum[3:0]   c_b0[3:0] G0 P0 cla4
+    Xcla1   a[7:4]   b[7:4]   C_lo1  sum[7:4]   c_b1[3:0] G1 P1 cla4
+    Xcla2   a[11:8]  b[11:8]  C_lo2  sum[11:8]  c_b2[3:0] G2 P2 cla4
+    Xcla3   a[15:12] b[15:12] C_lo3  sum[15:12] c_b3[3:0] G3 P3 cla4
+    Xclg_lo G[3:0] P[3:0] cin0 C_lo[3:1] GG_lo PG_lo clg4
+
+* Carry into upper 16 bits: cin16 = GG_lo + PG_lo*cin0
+    Xgglon  GG_lo gglo_n inverter
+    Xcin16a PG_lo cin0 t16 nand2
+    Xcin16  gglo_n t16 cin16 nand2
+
+* Upper 16 bits (four 4-bit CLA blocks + 1st-level CLG)
+    Xcla4   a[19:16] b[19:16] cin16  sum[19:16] c_b4[3:0] G4 P4 cla4
+    Xcla5   a[23:20] b[23:20] C_hi1  sum[23:20] c_b5[3:0] G5 P5 cla4
+    Xcla6   a[27:24] b[27:24] C_hi2  sum[27:24] c_b6[3:0] G6 P6 cla4
+    Xcla7   a[31:28] b[31:28] C_hi3  sum[31:28] c_b7[3:0] G7 P7 cla4
+    Xclg_hi G[7:4] P[7:4] cin16 C_hi[3:1] GG_hi PG_hi clg4
+
+* Expose cout[31:30] pairwise for overflow detection in as32
+    Xjcout c_b7[3:2] cout[31:30] join
 .ends
 
+*******************************************************************************
+* 7-Bit Carry-Lookahead Adder (for Branch Target)
+*******************************************************************************
 .subckt add7 a[6:0] b[6:0] cin0 sum[6:0] cout[6:0]
-    Xrca7 a[6:0] b[6:0] cout[5:0] cin0 sum[6:0] cout[6:0] fa
+* Bits [3:0]
+    Xcla_lo a[3:0] b[3:0] cin0 sum[3:0] cout[3:0] G0 P0 cla4
+
+* Bits [6:4] (padded with 0 on bit 7)
+    Xcla_hi 0 a[6:4] 0 b[6:4] cout3 sum7_unused sum[6:4] cout7_unused cout[6:4] G1 P1 cla4
+.ends
+
+*******************************************************************************
+* Fast 7-Bit Incrementer (2-level logic for PC + 4)
+*******************************************************************************
+.subckt inc7 a[6:0] sum[6:0]
+    Xp1 a0 a1 p1 and2
+    Xp2 a0 a1 a2 p2 and3
+    Xp3 a0 a1 a2 a3 p3 and4
+    Xp4 p3 a4 p4 and2
+    Xp5 p3 a4 a5 p5 and3
+
+    Xinv0 a0 sum0 inverter
+    Xxor1 a1 a0 sum1 xor2
+    Xxor2 a2 p1 sum2 xor2
+    Xxor3 a3 p2 sum3 xor2
+    Xxor4 a4 p3 sum4 xor2
+    Xxor5 a5 p4 sum5 xor2
+    Xxor6 a6 p5 sum6 xor2
 .ends
 
 *******************************************************************************
@@ -94,17 +213,20 @@
 *******************************************************************************
 * ALU
 *******************************************************************************
-.subckt alu32 a[31:0] b[31:0] alufn[5:0] f[31:0]
-    Xas a[31:0] b[31:0] alufn0 fas[31:0] n v z as32
-    Xbool a[31:0] b[31:0] alufn[3:0] fbool[31:0] bool32
+.subckt alu32 a[31:0] b[31:0] alufn[5:0] f[31:0] fas_mema[8:2]
+    Xas    a[31:0] b[31:0] alufn0 fas[31:0] n v z as32
+    Xbool  a[31:0] b[31:0] alufn[3:0] fbool[31:0] bool32
     Xshift a[31:0] b[4:0] alufn[1:0] fshift[31:0] shift32
-    Xcmp n v z alufn[2:1] fcmp[31:0] cmp32
-    Xalum alufn4#32 alufn5#32
+    Xcmp   n v z alufn[2:1] fcmp[31:0] cmp32
+    Xalum  alufn4#32 alufn5#32
     + fas[31:0] fbool[31:0] fshift[31:0] fcmp[31:0]
     + f[31:0] mux4
+
+    Xjfas fas[8:2] fas_mema[8:2] join
 .ends
 
-Xalu32 a[31:0] b[31:0] alufn[5:0] f[31:0] alu32
+* Exposes fas_mema[8:2] to bypass mux4 delay on LD/ST addresses
+Xalu32 a[31:0] b[31:0] alufn[5:0] f[31:0] mema[8:2] alu32
 
 *******************************************************************************
 
@@ -126,7 +248,7 @@ Xregisters  vdd  0    0     ra1_[4:0]  rd1_[31:0]
 + )
 
 *******************************************************************************
-* - WERF with R31 Constraint
+* WERF with R31 Constraint
 *******************************************************************************
 
 Xwa31a wa[0:3] wa31_lo and4
@@ -135,7 +257,7 @@ Xwerf werf_ wa_not31 werf_n and2
 
 *******************************************************************************
 
-Xcontrol  vdd  0  0  z opcode[5:0]  control[13:0]
+Xcontrol  vdd  0  0  0 opcode[5:0]  control[13:0]
 + $memory width=14 nlocations=128 contents=(
 +   0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000
 +   0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000
@@ -167,13 +289,40 @@ Xcontrol  vdd  0  0  z opcode[5:0]  control[13:0]
 * Control Signal Mapping
 *******************************************************************************
 
-Xjcontrola control[13:12] pcsel[1:0] join
+Xjcontrola_hi control13 pcsel1 join
+Xjcontrola_lo control12 pcsel0_raw join
 Xjcontrolb control11      ra2sel     join
 Xjcontrolc control10      bsel       join
 Xjcontrold control[9:8]   wdsel[1:0] join
 Xjcontrole control[7:2]   alufn[5:0] join
 Xjcontrolf control1       wr_         join
 Xjcontrolg control0       werf_      join
+
+*******************************************************************************
+* Opcode Adjuster (due to the influence of Z in branching)
+*******************************************************************************
+
+Xop_inv opcode[5:0] op_n[5:0] inverter
+
+* Match upper 4 bits: opcode[5:2] == 0111 (using and4)
+Xbr_hi  op_n5 opcode4 opcode3 opcode2 is_br_hi and4
+
+* Match lower 2 bits: BEQ = 01, BNE = 10 (using and2)
+Xbeq_lo op_n1 opcode0 is_beq_lo and2
+Xbne_lo opcode1 op_n0 is_bne_lo and2
+
+* Combine upper 4 bits + lower 2 bits (missing in current file)
+Xis_beq is_br_hi is_beq_lo is_beq and2
+Xis_bne is_br_hi is_bne_lo is_bne and2
+
+* branch_taken = (is_beq & z) | (is_bne & ~z)
+Xz_inv  z z_n inverter
+Xbt1 is_beq z   bt1_n nand2
+Xbt2 is_bne z_n bt2_n nand2
+Xbt bt1_n bt2_n branch_taken nand2
+
+Xis_br is_beq is_bne is_br or2
+Xpcsel0_fix is_br pcsel0_raw branch_taken pcsel0 mux2
 
 *******************************************************************************
 * Also connect our instruction signal lines to our opcode, rc, ra, rb, and c.
@@ -186,18 +335,17 @@ Xjinste inst[15:0]  c[15:0]     join
 
 Xjra1_ ra[4:0] ra1_[4:0] join
 Xjwa rc[4:0] wa[4:0] join
-Xjmema f[8:2] mema[8:2] join
 Xjmemwd rd2_[31:0] memwd[31:0] join
 
 .connect 0 mema[1:0] 
 
 *******************************************************************************
 * Program Counter Selector Inputs
-* - Using 7-bit (Ripple-Carry) Adder subcircuit
+* (Using 7-bit Carry-Lookahead Adder subcircuit)
 *******************************************************************************
 
 * Next Target = <PC> + 4
-Xntarg pc[8:2] 0#7 vdd ntarg[8:2] ntarg_co[8:2] add7
+Xntarg pc[8:2] ntarg[8:2] inc7
 
 * Branch Target = <PC> + 4 + 4C
 Xbtarg ntarg[8:2] c[6:0] 0 btarg[8:2] bt_co[8:2] add7
@@ -224,34 +372,33 @@ Xpcsel pcsel0#7 pcsel1#7
 + pc[8:2]
 + pc[8:2]_ mux4
 
-Xra2sel ra2sel#5 rb[4:0] rc[4:0] ra2_[4:0] mux2
-Xasel rd1_[31:0] a[31:0] join
-Xbsel bsel#32 rd2_[31:0] c15#16 c[15:0] b[31:0] mux2
-
-Xwdsel wdsel0#32 wdsel1#32
-+ 0#23 ntarg[8:2] 0#2
-+ f[31:0]
-+ memrd[31:0]
-+ 0#32
-+ wd[31:0] mux4
-
-
 Xpcres reset#7 pc[8:2]_ 0#7 pcnext[8:2] mux2
+Xpcreg pcnext[8:2] clk#7 pc[8:2] dreg
+.connect 0 pc[1:0]
+
+Xra2sel ra2sel#5 rb[4:0] rc[4:0] ra2_[4:0] mux2
+
+Xasel rd1_[31:0] a[31:0] join
+
+* Split 32x capacitive load on bsel into two 16x banks
+Xbsel_n bsel bsel_n inverter
+Xbsel_a bsel_n bsel_a inverter
+Xbsel_b bsel_n bsel_b inverter
+Xbsel   bsel_a#16 bsel_b#16 rd2_[31:0] c15#16 c[15:0] b[31:0] mux2
+
+* Split 32x capacitive load on wdsel1 into two 16x banks
+Xwdsel1_n wdsel1 wdsel1_n inverter
+Xwdsel1_a wdsel1_n wdsel1_a inverter
+Xwdsel1_b wdsel1_n wdsel1_b inverter
+Xwdsel_lo wdsel0#32 0#23 ntarg[8:2] 0#2 f[31:0] wd_alu_pc[31:0] mux2
+Xwdsel_hi wdsel1_a#16 wdsel1_b#16 wd_alu_pc[31:0] memrd[31:0] wd[31:0] mux2
+
 Xwrres reset wr_ 0 wr mux2
 Xwerfres reset werf_n 0 werf mux2
 
-Xpcreg pcnext[8:2] clk#7 pc[8:2] dreg
-
-.connect 0 pc[1:0]_ pc[1:0]
-
 *******************************************************************************
-* Temporarily connect other undefined signals.
-* Note that you will need to remove these signals from this section once you
-* connect them elsewhere!
+* Connecting Custom Plot Formats
 *******************************************************************************
-*.connect vdd clk ra1_[4:0] ra2_[4:0] wd[31:0] mema[8:0] memwd[31:0]
-*.connect 0 z
-
 .connect ra2_b_wdsel3 ra2sel
 .connect ra2_b_wdsel2 bsel
 .connect ra2_b_wdsel1 wdsel1
@@ -260,12 +407,15 @@ Xpcreg pcnext[8:2] clk#7 pc[8:2] dreg
 .connect wr_werf1 wr
 .connect wr_werf0 werf
 
-.connect clk clk2
-Wreset reset nrz(0, 5, 10ns, 0ns, .1ns, .1ns)
+*******************************************************************************
+* Clock & Reset
+*******************************************************************************
+.connect clk clk1
+Wreset reset nrz(0, 5, 6ns, 0ns, .1ns, .1ns)
 + 1 0
 
 *******************************************************************************
-.tran 1280ns
+.tran 320ns
 .plot pc[8:0]
 .plot betaop(opcode[5:0])
 .plot d(ra[4:0])
