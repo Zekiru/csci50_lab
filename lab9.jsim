@@ -205,11 +205,6 @@ Xbtarg ntarg[8:2] c[6:0] 0 btarg[8:2] bt_co[8:2] add7
 * Jump Target = JT = RD1
 Xjtarg rd1_[8:2] jtarg[8:2] join
 
-* Halt = <PC>
-Xhalt pc[8:2] halt[8:2] join
-
-* Xjpc clk[8:2] pc[8:2] join
-
 * (Z)ero; 32-Bit NOR subcircuit
 Xzero rd1_[31:0] z nor32
 
@@ -226,7 +221,7 @@ Xpcsel pcsel0#7 pcsel1#7
 + ntarg[8:2]
 + btarg[8:2]
 + jtarg[8:2]
-+ halt[8:2]
++ pc[8:2]
 + pc[8:2]_ mux4
 
 Xra2sel ra2sel#5 rb[4:0] rc[4:0] ra2_[4:0] mux2
