@@ -13,7 +13,7 @@
 .include "stdcell.jsim"
 
 *******************************************************************************
-* Full-Adder & 32-Bit Ripple-Carry Adder
+* Full-Adder & (32 & 7)-Bit Ripple-Carry Adder
 *******************************************************************************
 .subckt fa a b carry_in sum carry_out
     Xsum1 a b i xor2
@@ -25,6 +25,10 @@
 
 .subckt add32 a[31:0] b[31:0] cin0 sum[31:0] cout[31:30]
     Xadd a[31:0] b[31:0] cout[30:0] cin0 sum[31:0] cout[31:0] fa
+.ends
+
+.subckt add7 a[6:0] b[6:0] cin0 sum[6:0] cout[6:0]
+    Xrca7 a[6:0] b[6:0] cout[5:0] cin0 sum[6:0] cout[6:0] fa
 .ends
 
 *******************************************************************************
@@ -191,10 +195,6 @@ Xjmemwd rd2_[31:0] memwd[31:0] join
 * Program Counter Selector Inputs
 * - Using 7-bit (Ripple-Carry) Adder subcircuit
 *******************************************************************************
-
-.subckt add7 a[6:0] b[6:0] cin0 sum[6:0] cout[6:0]
-    Xrca7 a[6:0] b[6:0] cout[5:0] cin0 sum[6:0] cout[6:0] fa
-.ends
 
 * Next Target = <PC> + 4
 Xntarg pc[8:2] 0#7 vdd ntarg[8:2] ntarg_co[8:2] add7
