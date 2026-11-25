@@ -1,20 +1,16 @@
 *******************************************************************************
-* LAB #9
-*
+* LAB #9 - Beta Processor Implementation
 * Team In-vert
 * - Sales, Miguel
 * - Villaluz, Chester
 * - Villasurda, Ezekiel
-*
 *******************************************************************************
 
 .include "8clocks.jsim"
 .include "nominal.jsim"
 .include "stdcell.jsim"
 
-*******************************************************************************
-
-* Full-Adder
+* One-bit full adder used by the word and PC adders.
 .subckt fa a b carry_in sum carry_out
     Xsum1 a b i xor2
     Xsum2 i carry_in sum xor2
@@ -23,38 +19,108 @@
     Xc_out3 j k carry_out nand2
 .ends
 
-*******************************************************************************
-* 32-bit NOR
-* - Used by as32 to determine if all 32-bits of input are all 0 
-*******************************************************************************
+.subckt add32 a[31:0] b[31:0] cin sum[31:0] cout
+    Xrca a[31:0] b[31:0] carry[30:0] cin sum[31:0] carry[31:0] fa
+    Xcout carry[31] cout buffer
+.ends
+
+.subckt add7 a[6:0] b[6:0] cin sum[6:0] cout
+    Xrca a[6:0] b[6:0] carry[5:0] cin sum[6:0] carry[6:0] fa
+    Xcout carry[6] cout buffer
+.ends
+
+* 32-bit zero detector.  z is high iff every bit of i is zero.
 .subckt nor32 i[31:0] z
-    Xnor0 i[31:28] x0 nor4
-    Xnor1 i[27:24] x1 nor4
-    Xnor2 i[23:20] x2 nor4
-    Xnor3 i[19:16] x3 nor4
-    Xnor4 i[15:12] x4 nor4
-    Xnor5 i[11:8] x5 nor4
-    Xnor6 i[7:4] x6 nor4
-    Xnor7 i[3:0] x7 nor4
-    Xnand0 x[7:4] y0 nand4
-    Xnand1 x[3:0] y1 nand4
+    Xnor0 i[31:28] x[0] nor4
+    Xnor1 i[27:24] x[1] nor4
+    Xnor2 i[23:20] x[2] nor4
+    Xnor3 i[19:16] x[3] nor4
+    Xnor4 i[15:12] x[4] nor4
+    Xnor5 i[11:8]  x[5] nor4
+    Xnor6 i[7:4]   x[6] nor4
+    Xnor7 i[3:0]   x[7] nor4
+    Xnand0 x[7:4] y[0] nand4
+    Xnand1 x[3:0] y[1] nand4
     Xnor8 y[1:0] z nor2
 .ends
 
-Xzero rd1_[31:0] z nor32
+* A complete combinational Beta ALU.  MUL/DIV remain illegal, matching ROM.
+.subckt alu a[31:0] b[31:0] fn[5:0] y[31:0]
+    Xadd a[31:0] b[31:0] 0 add[31:0] add_co add32
+    Xbinv b[31:0] b_inv[31:0] inverter
+    Xsub a[31:0] b_inv[31:0] vdd sub[31:0] sub_co add32
+    Xarithmetic fn[0] add[31:0] sub[31:0] arithmetic[31:0] mux2
+
+    * Boolean truth-table mux: fn[3:0] encodes d3 d2 d1 d0.
+    Xboolean a[31:0] b[31:0] fn[0]#32 fn[1]#32 fn[2]#32 fn[3]#32 boolean[31:0] mux4
+
+    * Signed compare results are 32-bit words whose only possible set bit is 0.
+    Xequal sub[31:0] equal nor32
+    Xb_sign_inv b[31] b_sign_inv inverter
+    Xsign_diff a[31] b[31] sign_diff xor2
+    Xsame_sign sign_diff same_sign inverter
+    Xneg_pos a[31] b_sign_inv neg_pos and2
+    Xsub_negative same_sign sub[31] same_sign_negative and2
+    Xless neg_pos same_sign_negative less or2
+    Xless_equal less equal less_equal or2
+    .connect 0 eq_word[31:1]
+    .connect 0 lt_word[31:1]
+    .connect 0 le_word[31:1]
+    .connect equal eq_word[0]
+    .connect less lt_word[0]
+    .connect less_equal le_word[0]
+    Xcompare fn[1]#32 fn[2]#32 0#32 eq_word[31:0] lt_word[31:0] le_word[31:0] compare[31:0] mux4
+
+    * Five-stage barrel shifter.  fn[0]=0 selects left; fn[0]=1 selects right.
+    * fn[1] supplies arithmetic sign fill for SRA, and is zero for SHR.
+    Xsignfill a[31] fn[1] sign_fill and2
+    Xr1data a[31:1] r1in[30:0] join
+    Xr1fill sign_fill r1in[31] join
+    Xr1 b[0] a[31:0] r1in[31:0] r1[31:0] mux2
+    Xr2data r1[31:2] r2in[29:0] join
+    Xr2fill sign_fill#2 r2in[31:30] join
+    Xr2 b[1] r1[31:0] r2in[31:0] r2[31:0] mux2
+    Xr4data r2[31:4] r4in[27:0] join
+    Xr4fill sign_fill#4 r4in[31:28] join
+    Xr4 b[2] r2[31:0] r4in[31:0] r4[31:0] mux2
+    Xr8data r4[31:8] r8in[23:0] join
+    Xr8fill sign_fill#8 r8in[31:24] join
+    Xr8 b[3] r4[31:0] r8in[31:0] r8[31:0] mux2
+    Xr16data r8[31:16] r16in[15:0] join
+    Xr16fill sign_fill#16 r16in[31:16] join
+    Xr16 b[4] r8[31:0] r16in[31:0] right[31:0] mux2
+
+    Xl1data a[30:0] l1in[31:1] join
+    .connect 0 l1in[0]
+    Xl1 b[0] a[31:0] l1in[31:0] l1[31:0] mux2
+    Xl2data l1[29:0] l2in[31:2] join
+    .connect 0 l2in[1:0]
+    Xl2 b[1] l1[31:0] l2in[31:0] l2[31:0] mux2
+    Xl4data l2[27:0] l4in[31:4] join
+    .connect 0 l4in[3:0]
+    Xl4 b[2] l2[31:0] l4in[31:0] l4[31:0] mux2
+    Xl8data l4[23:0] l8in[31:8] join
+    .connect 0 l8in[7:0]
+    Xl8 b[3] l4[31:0] l8in[31:0] l8[31:0] mux2
+    Xl16data l8[15:0] l16in[31:16] join
+    .connect 0 l16in[15:0]
+    Xl16 b[4] l8[31:0] l16in[31:0] left[31:0] mux2
+    Xshift fn[0] left[31:0] right[31:0] shift[31:0] mux2
+
+    Xresult fn[4]#32 fn[5]#32 arithmetic[31:0] boolean[31:0] shift[31:0] compare[31:0] y[31:0] mux4
+.ends
 
 *******************************************************************************
-
-Xmemory  vdd  0    0   pc[8:2]    inst[31:0]
-+        vdd  0    0   mema[8:2]  memrd[31:0]
-+        0    clk  wr  mema[8:2]  memwd[31:0]
+* Memories
+*******************************************************************************
+Xmemory vdd 0 0 pc[8:2] inst[31:0]
++       vdd 0 0 mema[8:2] memrd[31:0]
++       0 clk wr mema[8:2] memwd[31:0]
 + $memory width=32 nlocations=128 file="lab7.bin"
 
-*******************************************************************************
-
-Xregisters  vdd  0    0     ra1_[4:0]  rd1_[31:0]
-+           vdd  0    0     ra2_[4:0]  rd2_[31:0]
-+           0    clk  werf  wa[4:0]    wd[31:0]
+Xregisters vdd 0 0 ra1[4:0] rd1[31:0]
++          vdd 0 0 ra2[4:0] rd2[31:0]
++          0 clk werf wa[4:0] wd[31:0]
 + $memory width=32 nlocations=32 contents=(
 +   0 0 0 0 0 0 0 0
 +   0 0 0 0 0 0 0 0
@@ -63,14 +129,9 @@ Xregisters  vdd  0    0     ra1_[4:0]  rd1_[31:0]
 + )
 
 *******************************************************************************
-
-Xwa31a  wa[0] wa[1] wa[2] wa[3]  wa31_lo  and4
-Xwa31b  wa31_lo wa[4]            wa_not31 nand2
-Xwerf   werf_ wa_not31           werf     and2
-
+* Control ROM: control = pcsel ra2sel bsel wdsel alufn wr werf_
 *******************************************************************************
-
-Xcontrol  vdd  0  0  z opcode[5:0]  control[13:0]
+Xcontrol vdd 0 0 z opcode[5:0] control[13:0]
 + $memory width=14 nlocations=128 contents=(
 +   0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000
 +   0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000
@@ -91,74 +152,68 @@ Xcontrol  vdd  0  0  z opcode[5:0]  control[13:0]
 +   0b00010101100001 0b00010101111001 0b00010101011001 0b11000000000000 0b00010110000001 0b00010110000101 0b00010110001101 0b11000000000000
 + )
 
-*******************************************************************************
-* Helper subckt to facilitate multi-bit joins.
-*******************************************************************************
-.subckt join S T
-  .connect S T
+.subckt join s t
+    .connect s t
 .ends
 
-*******************************************************************************
-* Control Signal Mapping
-*******************************************************************************
+* Decode instruction and ROM fields.
+Xopcode inst[31:26] opcode[5:0] join
+Xrc inst[25:21] rc[4:0] join
+Xra inst[20:16] ra[4:0] join
+Xrb inst[15:11] rb[4:0] join
+Xc inst[15:0] c[15:0] join
+Xpcsel control[13:12] pcsel[1:0] join
+Xra2sel control[11] ra2sel join
+Xbsel control[10] bsel join
+Xwdsel control[9:8] wdsel[1:0] join
+Xalufn control[7:2] alufn[5:0] join
+Xwrctl control[1] wr_ctl join
+Xwerfctl control[0] werf_ctl join
 
-Xjcontrola control[13:12] pcsel[1:0] join
-Xjcontrolb control11      ra2sel     join
-Xjcontrolc control10      bsel       join
-Xjcontrold control[9:8]   wdsel[1:0] join
-Xjcontrole control[7:2]   alufn[5:0] join
-Xjcontrolf control1       wr         join
-Xjcontrolg control0       werf_      join
-
-*******************************************************************************
-* Also connect our instruction signal lines to our opcode, rc, ra, rb, and c.
-*******************************************************************************
-Xjinsta inst[31:26] opcode[5:0] join
-Xjinstb inst[25:21] rc[4:0]     join
-Xjinstc inst[20:16] ra[4:0]     join
-Xjinstd inst[15:11] rb[4:0]     join
-Xjinste inst[15:0]  c[15:0]     join
+* Reset is asserted through the first clk2 rising edge, then permanently low.
+* clk2 is shared by the PC, register file, and data-memory write port.
+Vreset reset 0 pwl(0ns,5,10ns,5,10.1ns,0,2000ns,0)
+Xclock clk2 clk join
 
 *******************************************************************************
-* Program Counter
+* Register-file addressing, operand selection, ALU, and writeback
 *******************************************************************************
+Xra1 ra[4:0] ra1[4:0] join
+Xra2mux ra2sel rb[4:0] rc[4:0] ra2[4:0] mux2
+Xsext_hi c[15]#16 sext[31:16] join
+Xsext_lo c[15:0] sext[15:0] join
+Xbmux bsel rd2[31:0] sext[31:0] b[31:0] mux2
+Xalu rd1[31:0] b[31:0] alufn[5:0] alu_out[31:0] alu
+Xz rd1[31:0] z nor32
 
-* 7-Bit Ripple-Carry Adder
-.subckt add7 a[6:0] b[6:0] cin0 sum[6:0] cout[6:0]
-    Xrca7 a[6:0] b[6:0] cout[5:0] cin0 sum[6:0] cout[6:0] fa
-.ends
+* Byte-address versions of PC+4 and ALU address for writeback and data memory.
+Xpcp4 pcnext[8:2] pcp4[8:2] join
+.connect 0 pcp4[31:9]
+.connect 0 pcp4[1:0]
+Xwdmux wdsel[0]#32 wdsel[1]#32 pcp4[31:0] alu_out[31:0] memrd[31:0] 0#32 wd[31:0] mux4
+Xwa rc[4:0] wa[4:0] join
+Xwa31a wa[0] wa[1] wa[2] wa[3] wa31_lo and4
+Xwa31b wa31_lo wa[4] wa_not31 nand2
+Xwerfreset reset werf_ctl 0 werf_enabled mux2
+Xwerf werf_enabled wa_not31 werf and2
+Xmemaddr alu_out[8:2] mema[8:2] join
+.connect 0 mema[1:0]
+Xmemwd rd2[31:0] memwd[31:0] join
+Xwrreset reset wr_ctl 0 wr mux2
+Xwrite_display wr_werf[1:0] wr werf join
 
-* Program Counter Selector
-Xpcnext pc[8:2] 0#7 vdd pcnext[8:2] pcnext_co[8:2] add7
-Xbtarg pcnext[8:2] c[8:2] 0 btarg[8:2] bt_co[8:2] add7
-Xjtarg rd1_[8:2] jtarg[8:2] join
-Xhalt pc[8:2] halt[8:2] join
-
-*Xpcselmux pcsel0#7 pcsel1#7
-*+ pcnext[8:2]
-*+ btarg[8:2]
-*+ jtarg[8:2]
-*+ halt[8:2]
-*+ pc[8:2] mux4
-
-*.connect 0 pc[1:0]
-
-Xjpc clk[8:2] pc[8:2] join
+*******************************************************************************
+* Program counter: PC+4, PC+4+4*C, JT, halt hold, and reset selection.
+*******************************************************************************
+Xpcplus4 pc[8:2] 0#7 vdd pcnext[8:2] pcplus4_co add7
+Xbranch pcnext[8:2] c[8:2] 0 btarg[8:2] branch_co add7
+Xjtarg rd1[8:2] jtarg[8:2] join
+Xpcselect pcsel[0]#7 pcsel[1]#7 pcnext[8:2] btarg[8:2] jtarg[8:2] pc[8:2] pc_selected[8:2] mux4
+Xpcreset reset pc_selected[8:2] 0#7 pc_d[8:2] mux2
+Xpc pc_d[8:2] clk pc[8:2] dreg
 .connect 0 pc[1:0]
 
-* The write address is the rc field of the instruction.
-Xjwa rc[4:0] wa[4:0] join
-
-*******************************************************************************
-* Temporarily connect other undefined signals.
-* Note that you will need to remove these signals from this section once you
-* connect them elsewhere!
-*******************************************************************************
-.connect vdd clk ra1_[4:0] ra2_[4:0] wd[31:0] mema[8:0] memwd[31:0]
-*.connect 0 z
-
-*******************************************************************************
-.tran 1280ns
+.tran 2000ns
 .plot pc[8:0]
 .plot betaop(opcode[5:0])
 .plot d(ra[4:0])
@@ -166,11 +221,10 @@ Xjwa rc[4:0] wa[4:0] join
 .plot d(rc[4:0])
 .plot sd(c[15:0])
 .plot b(pcsel[1:0])
-.plot b(ra2_b_wdsel[3:0])
 .plot b(alufn[5:0])
 .plot b(wr_werf[1:0])
-.plot sd(rd1_[31:0])
-.plot sd(rd2_[31:0])
+.plot sd(rd1[31:0])
+.plot sd(rd2[31:0])
 .plot sd(wd[31:0])
 .plot d(mema[8:0])
 .plot sd(memrd[31:0])
