@@ -1,9 +1,11 @@
 *******************************************************************************
-* LAB #9 - Beta Processor Implementation
+* LAB #9
+*
 * Team In-vert
 * - Sales, Miguel
 * - Villaluz, Chester
 * - Villasurda, Ezekiel
+*
 *******************************************************************************
 
 .include "8clocks.jsim"
@@ -33,16 +35,16 @@
 * 32-bit NOR
 *******************************************************************************
 .subckt nor32 i[31:0] z
-    Xnor0 i[31:28] x[0] nor4
-    Xnor1 i[27:24] x[1] nor4
-    Xnor2 i[23:20] x[2] nor4
-    Xnor3 i[19:16] x[3] nor4
-    Xnor4 i[15:12] x[4] nor4
-    Xnor5 i[11:8]  x[5] nor4
-    Xnor6 i[7:4]   x[6] nor4
-    Xnor7 i[3:0]   x[7] nor4
-    Xnand0 x[7:4] y[0] nand4
-    Xnand1 x[3:0] y[1] nand4
+    Xnor0 i[31:28] x0 nor4
+    Xnor1 i[27:24] x1 nor4
+    Xnor2 i[23:20] x2 nor4
+    Xnor3 i[19:16] x3 nor4
+    Xnor4 i[15:12] x4 nor4
+    Xnor5 i[11:8] x5 nor4
+    Xnor6 i[7:4] x6 nor4
+    Xnor7 i[3:0] x7 nor4
+    Xnand0 x[7:4] y0 nand4
+    Xnand1 x[3:0] y1 nand4
     Xnor8 y[1:0] z nor2
 .ends
 
@@ -105,16 +107,17 @@
 Xalu32 a[31:0] b[31:0] alufn[5:0] f[31:0] alu32
 
 *******************************************************************************
-* Memories
-*******************************************************************************
-Xmemory vdd 0 0 pc[8:2] inst[31:0]
-+       vdd 0 0 mema[8:2] memrd[31:0]
-+       0 clk wr mema[8:2] memwd[31:0]
+
+Xmemory  vdd  0    0   pc[8:2]    inst[31:0]
++        vdd  0    0   mema[8:2]  memrd[31:0]
++        0    clk  wr  mema[8:2]  memwd[31:0]
 + $memory width=32 nlocations=128 file="lab7.bin"
 
-Xregisters vdd 0 0 ra1[4:0] rd1[31:0]
-+          vdd 0 0 ra2[4:0] rd2[31:0]
-+          0 clk werf wa[4:0] wd[31:0]
+*******************************************************************************
+
+Xregisters  vdd  0    0     ra1_[4:0]  rd1_[31:0]
++           vdd  0    0     ra2_[4:0]  rd2_[31:0]
++           0    clk  werf  wa[4:0]    wd[31:0]
 + $memory width=32 nlocations=32 contents=(
 +   0 0 0 0 0 0 0 0
 +   0 0 0 0 0 0 0 0
@@ -131,7 +134,8 @@ Xwa31b wa31_lo wa[4] wa_not31 nand2
 Xwerf werf_ wa_not31 werf_n and2
 
 *******************************************************************************
-Xcontrol vdd 0 0 z opcode[5:0] control[13:0]
+
+Xcontrol  vdd  0  0  z opcode[5:0]  control[13:0]
 + $memory width=14 nlocations=128 contents=(
 +   0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000
 +   0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000
@@ -152,8 +156,11 @@ Xcontrol vdd 0 0 z opcode[5:0] control[13:0]
 +   0b00010101100001 0b00010101111001 0b00010101011001 0b11000000000000 0b00010110000001 0b00010110000101 0b00010110001101 0b11000000000000
 + )
 
-.subckt join s t
-    .connect s t
+*******************************************************************************
+* Helper subckt to facilitate multi-bit joins.
+*******************************************************************************
+.subckt join S T
+  .connect S T
 .ends
 
 *******************************************************************************
@@ -169,7 +176,7 @@ Xjcontrolf control1       wr_         join
 Xjcontrolg control0       werf_      join
 
 *******************************************************************************
-* Register-file addressing, operand selection, ALU, and writeback
+* Also connect our instruction signal lines to our opcode, rc, ra, rb, and c.
 *******************************************************************************
 Xjinsta inst[31:26] opcode[5:0] join
 Xjinstb inst[25:21] rc[4:0]     join
@@ -266,10 +273,11 @@ Wreset reset nrz(0, 5, 10ns, 0ns, .1ns, .1ns)
 .plot d(rc[4:0])
 .plot sd(c[15:0])
 .plot b(pcsel[1:0])
+.plot b(ra2_b_wdsel[3:0])
 .plot b(alufn[5:0])
 .plot b(wr_werf[1:0])
-.plot sd(rd1[31:0])
-.plot sd(rd2[31:0])
+.plot sd(rd1_[31:0])
+.plot sd(rd2_[31:0])
 .plot sd(wd[31:0])
 .plot d(mema[8:0])
 .plot sd(memrd[31:0])
