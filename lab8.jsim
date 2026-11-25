@@ -1,0 +1,263 @@
+*******************************************************************************
+* LAB #8
+*
+* Team In-vert
+* - Sales, Miguel
+* - Villaluz, Chester
+* - Villasurda, Ezekiel
+*
+*
+* Program used: lab7.bin was assembled from Lab 7-1 Odd-Even Sums program.
+*
+*******************************************************************************
+
+.include "8clocks.jsim"
+.include "nominal.jsim"
+.include "stdcell.jsim"
+
+*******************************************************************************
+* The $memory statement defines a memory device. Each memory device comes with
+* one or more ports, each of which may be used for either reading or writing.
+*
+* Usage:
+*   Xid  <port def>
+*   +    <port def>
+*   +    ...
+*   + $memory width=<w> nlocations=<n> [file="<x.bin>" | contents=(<c c c>...)]
+*
+* <port def> is in the format "<oe> <clk> <wen> <addr[...]> <data[...]>"
+*
+* w     = the number of data lines (normally 32 in a 32-bit processor)
+* n     = the number of memory locations (addresses) in this memory device
+* x.bin = any .bin file that defines the initial contents of the memory
+*         (must be in the same directory as JSim)
+* c c c = defines the initial contents of the memory in an _inline_ manner
+*         (i.e., not in an external file)
+* oe    = "output enable", enables the memory device to output to the data
+*         lines; this must be ON for read ports and OFF for write ports
+* clk   = a clock input, needed for write ports; the data is written during a
+*         rising edge
+* wen   = "write enable", must be ON whenever we want to write to a write port
+* addr  = a set of lines that contains the address to be accessed by the port
+* data  = a set of lines that contains the data to be output (for read ports)
+*         or the data to be written into memory (for write ports)
+*
+* The number of addr lines provided must be equal to ceiling(log2(nlocations)).
+* The number of data lines provided must be equal to width.
+*
+* Note that if nlocations is not a power of 2, trying to address a non-existent
+* memory location will result in an invalid read! Example: if nlocations=31
+* instead of 32 and addr=0b11111 (31), the output of the device is undefined!
+*******************************************************************************
+
+*******************************************************************************
+* Xmemory is a 512-byte main memory containing both user instructions and data.
+*   1st line = read port for the next instruction to process (inst)
+*   2nd line = read port for LD instructions (memrd)
+*   3rd line = write port for ST instructions (memwd, controlled by wr signal)
+*   5th line = the memory statement itself
+*
+* Lab 7 bin file: 7-1 (Odd-Even Sums)
+*
+*******************************************************************************
+Xmemory  vdd  0    0   pc[8:2]    inst[31:0]
++        vdd  0    0   mema[8:2]  memrd[31:0]
++        0    clk  wr  mema[8:2]  memwd[31:0]
++ $memory width=32 nlocations=128 file="lab7.bin"
+
+*******************************************************************************
+* Xregisters is a register memory device to store your Beta registers r0 - r31.
+*   1st line = read port for rd1_
+*   2nd line = read port for rd2_
+*   3rd line = write port for wd (controlled by werf signal)
+*   4th line = the memory statement itself
+*   succeeding lines = initial values of the registers
+*******************************************************************************
+Xregisters  vdd  0    0     ra1_[4:0]  rd1_[31:0]
++           vdd  0    0     ra2_[4:0]  rd2_[31:0]
++           0    clk  werf  wa[4:0]    wd[31:0]
++ $memory width=32 nlocations=32 contents=(
++   0 0 0 0 0 0 0 0
++   0 0 0 0 0 0 0 0
++   0 0 0 0 0 0 0 0
++   0 0 0 0 0 0 0 0
++ )
+
+*******************************************************************************
+* If wa[4:0] = 0b11111 (31), werf is forced OFF so r31 always stays 0;
+* otherwise werf simply follows werf_.
+*   werf = werf_ AND NOT(wa == 31)
+*******************************************************************************
+Xwa31a  wa[0] wa[1] wa[2] wa[3]  wa31_lo  and4
+Xwa31b  wa31_lo wa[4]            wa_not31 nand2
+Xwerf   werf_ wa_not31           werf     and2
+
+*******************************************************************************
+* Control Layout: Read-only Memory (ROM)
+* Row layout: control = pcsel[1:0] ra2sel bsel wdsel[1:0] alufn[5:0] wr werf_
+* (first half is for z = 0, second half for z = 1)
+*
+* Supported opcodes: LD 0x18, ST 0x19, JMP 0x1B, BEQ 0x1D, BNE 0x1E,
+*   ADD 0x20, SUB 0x21, CMPEQ 0x24, CMPLT 0x25, CMPLE 0x26, AND 0x28, OR 0x29,
+*   XOR 0x2A, SHL 0x2C, SHR 0x2D, SRA 0x2E, and the constant
+*   versions of each (opcode + 0x10: ADDC 0x30 ... SRAC 0x3E).
+*   Everything else (incl. LDR 0x1F, which needs asel) -> 0b11000000000000.
+*******************************************************************************
+Xcontrol  vdd  0  0  z opcode[5:0]  control[13:0]
++ $memory width=14 nlocations=128 contents=(
++   0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000
++   0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000
++   0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000
++   0b00011000000001 0b00110000000010 0b11000000000000 0b10000000000001 0b11000000000000 0b00000000000001 0b01000000000001 0b11000000000000
++   0b00000100000001 0b00000100000101 0b11000000000000 0b11000000000000 0b00000111001101 0b00000111010101 0b00000111011101 0b11000000000000
++   0b00000101100001 0b00000101111001 0b00000101011001 0b11000000000000 0b00000110000001 0b00000110000101 0b00000110001101 0b11000000000000
++   0b00010100000001 0b00010100000101 0b11000000000000 0b11000000000000 0b00010111001101 0b00010111010101 0b00010111011101 0b11000000000000
++   0b00010101100001 0b00010101111001 0b00010101011001 0b11000000000000 0b00010110000001 0b00010110000101 0b00010110001101 0b11000000000000
++
++   0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000
++   0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000
++   0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000 0b11000000000000
++   0b00011000000001 0b00110000000010 0b11000000000000 0b10000000000001 0b11000000000000 0b01000000000001 0b00000000000001 0b11000000000000
++   0b00000100000001 0b00000100000101 0b11000000000000 0b11000000000000 0b00000111001101 0b00000111010101 0b00000111011101 0b11000000000000
++   0b00000101100001 0b00000101111001 0b00000101011001 0b11000000000000 0b00000110000001 0b00000110000101 0b00000110001101 0b11000000000000
++   0b00010100000001 0b00010100000101 0b11000000000000 0b11000000000000 0b00010111001101 0b00010111010101 0b00010111011101 0b11000000000000
++   0b00010101100001 0b00010101111001 0b00010101011001 0b11000000000000 0b00010110000001 0b00010110000101 0b00010110001101 0b11000000000000
++ )
+
+*******************************************************************************
+* Helper subckt to facilitate multi-bit joins.
+*******************************************************************************
+.subckt join S T
+  .connect S T
+.ends
+
+*******************************************************************************
+* The following .connect statements define what control signal goes to which
+* of the 14 bits of the control ROM's output. The bits are ordered as they
+* appear in the control logic diagram of your 50.01 slides.
+*******************************************************************************
+Xjcontrola control[13:12] pcsel[1:0] join
+Xjcontrolb control11      ra2sel     join
+Xjcontrolc control10      bsel       join
+Xjcontrold control[9:8]   wdsel[1:0] join
+Xjcontrole control[7:2]   alufn[5:0] join
+Xjcontrolf control1       wr         join
+Xjcontrolg control0       werf_      join
+
+*******************************************************************************
+* Also connect our instruction signal lines to our opcode, rc, ra, rb, and c.
+*******************************************************************************
+Xjinsta inst[31:26] opcode[5:0] join
+Xjinstb inst[25:21] rc[4:0]     join
+Xjinstc inst[20:16] ra[4:0]     join
+Xjinstd inst[15:11] rb[4:0]     join
+Xjinste inst[15:0]  c[15:0]     join
+
+*******************************************************************************
+* Temporarily connect pc[] to the predefined clocks so that we can view each
+* instruction in sequence.
+* Note that you will need to replace this with a real program counter circuit
+* in the final lab!
+*******************************************************************************
+Xjpc clk[8:2] pc[8:2] join
+.connect 0 pc[1:0]
+
+* The write address is the rc field of the instruction.
+Xjwa rc[4:0] wa[4:0] join
+
+*******************************************************************************
+* Temporarily connect other undefined signals.
+* Note that you will need to remove these signals from this section once you
+* connect them elsewhere!
+*******************************************************************************
+.connect vdd clk ra1_[4:0] ra2_[4:0] wd[31:0] mema[8:0] memwd[31:0]
+.connect 0 z
+
+*******************************************************************************
+* Plot some signals together (or else we won't have enough space in the plot
+* window)
+*******************************************************************************
+Xjdisplaya ra2_b_wdsel[3:0] ra2sel bsel wdsel[1:0] join
+Xjdisplayb wr_werf[1:0]     wr werf_               join
+
+*******************************************************************************
+* This section plots the following signals in order:
+* - pc (program counter)
+* - beta operation mnemonic (taken from the 6-bit opcode header)
+* - ra, rb, rc (taken from the rest of the instruction opcode)
+* - c (taken from the last 16 bits of the instruction opcode)
+* - control signals (i.e., output of the control logic)
+* - rd1_ (result of reading address ra1_)
+* - rd2_ (result of reading address ra2_)
+* - wd (value being written to address wa -- but only if werf is 1)
+* - mema (address to access in main memory)
+* - memrd (result of reading address mema)
+* - memwd (value being written to address mema -- but only if wr is 1)
+*
+* Since the circuit is incomplete, the values will be invalid starting from the
+* control signals. After you're done with this current lab, the control signals
+* should be correct. (After you're done with the final lab, everything should
+* be correct!)
+*
+* IMPORTANT: Since z is currently connected to 0, only the first half of your
+*            table of control logic signals is returned. To test the second
+*            half of your table, modify the ".connect 0 z" statement above
+*            this section to ".connect vdd z". (Remember that in the final
+*            lab, z should instead be computed by some circuit instead of
+*            connected to ground or vdd!)
+*******************************************************************************
+.tran 1280ns
+.plot pc[8:0]
+.plot betaop(opcode[5:0])
+.plot d(ra[4:0])
+.plot d(rb[4:0])
+.plot d(rc[4:0])
+.plot sd(c[15:0])
+.plot b(pcsel[1:0])
+.plot b(ra2_b_wdsel[3:0])
+.plot b(alufn[5:0])
+.plot b(wr_werf[1:0])
+.plot sd(rd1_[31:0])
+.plot sd(rd2_[31:0])
+.plot sd(wd[31:0])
+.plot d(mema[8:0])
+.plot sd(memrd[31:0])
+.plot sd(memwd[31:0])
+
+
+*******************************************************************************
+* GUIDE QUESTIONS
+*
+* a. Why is there an additional Z input (on top of the instruction opcode
+*    inputs) in the Xcontrol block?
+*
+*    The z input acts as the zero-detection flag (Reg[Ra] == 0) so the
+*    Xcontrol ROM can decide whether to take a branch during BEQ (0x1D) and
+*    BNE (0x1E) instructions. Specifically, z toggles the least significant
+*    bit of pcsel[1:0] between 0b00 (PC + 4) and 0b01 (branch target) without
+*    needing extra logic gates outside the ROM. For BEQ, pcsel becomes 01 when
+*    z = 1; for BNE, pcsel becomes 01 when z = 0.
+*
+* b. Why should invalid instructions' control logic output be set to the
+*    constant 0b11000000000000?
+*
+*    Following the 14-bit layout (pcsel[1:0] ra2sel bsel wdsel[1:0] alufn[5:0]
+*    wr werf_), 0b11000000000000 sets pcsel = 11 while keeping every other
+*    control signal, including wr (memory write) and werf_ (register write)
+*    at 0. This prevents executing garbage, while wr = 0 and werf_ = 0 protect 
+*    registers and main memory from accidental writes.
+*
+* c. Does your Lab 7 program represent a good number of opcodes that your
+*    control logic supports? What's the functional coverage?
+*
+*    No, the functional coverage is still low at 9 out of 27 supported opcodes
+*    (~33.3%). While Xcontrol supports 27 opcodes (memory, branching, jumps,
+*    and all register/constant ALU operations), our Odd/Even Sum program only
+*    uses 9 of them (LD, ST, BEQ, BNE, ADD, ADDC, SUBC, CMPLE, and ANDC)
+*    because it only needs basic arithmetic, memory access, branch checks, and
+*    a single bitwise mask to separate odd and even values. As a result,
+*    entire instruction categories like jumps (JMP), other bitwise ops (OR,
+*    XOR), equality/less-than comparisons (CMPEQ, CMPLT), and all bit shifts
+*    (SHL, SHR, SRA) remain untested, meaning a broader test program is still
+*    needed to verify the rest of the ROM.
+*******************************************************************************
